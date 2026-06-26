@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Football Analytics · From Raw Web Data to Pitch Visuals</title>
+<style>
+  :root {
+    --bg:        #0d0d0d;
+    --surface:   #161616;
+    --card:      #1c1c1c;
+    --border:    #2a2a2a;
+    --gold:      #F6A623;
+    --gold-dim:  #b87a18;
+    --text:      #e8e8e8;
+    --muted:     #888;
+    --pitch:     #1a2e1a;
+    --line:      #4a7c59;
+    --mono:      'JetBrains Mono', 'Fira Code', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    line-height: 1.7;
+    font-size: 15px;
+  }
+
+  /* ── Hero ─────────────────────────────────────────── */
+  .hero {
+    background: linear-gradient(160deg, #0d1a0d 0%, #0d0d0d 60%);
+    border-bottom: 1px solid var(--border);
+    padding: 72px 24px 56px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 80px,
+      rgba(74,124,89,0.04) 80px,
+      rgba(74,124,89,0.04) 81px
+    ),
+    repeating-linear-gradient(
+      180deg,
+      transparent,
+      transparent 80px,
+      rgba(74,124,89,0.04) 80px,
+      rgba(74,124,89,0.04) 81px
+    );
+    pointer-events: none;
+  }
+
+  .hero-tag {
+    display: inline-block;
+    background: rgba(246,166,35,0.12);
+    color: var(--gold);
+    border: 1px solid rgba(246,166,35,0.3);
+    border-radius: 100px;
+    padding: 4px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+
+  .hero h1 {
+    font-size: clamp(26px, 5vw, 46px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    margin-bottom: 16px;
+  }
+
+  .hero h1 span { color: var(--gold); }
+
+  .hero p {
+    max-width: 580px;
+    margin: 0 auto 32px;
+    color: var(--muted);
+    font-size: 16px;
+  }
+
+  .hero-links {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    display: inline-block;
+    padding: 10px 22px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.18s;
+  }
+
+  .btn-primary {
+    background: var(--gold);
+    color: #0d0d0d;
+  }
+
+  .btn-primary:hover { background: #e09810; }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .btn-ghost:hover { border-color: var(--gold); color: var(--gold); }
+
+  /* ── Layout ───────────────────────────────────────── */
+  .container {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  section { padding: 56px 0; border-bottom: 1px solid var(--border); }
+  section:last-child { border-bottom: none; }
+
+  h2 {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .section-intro {
+    color: var(--muted);
+    margin-bottom: 32px;
+    max-width: 640px;
+  }
+
+  /* ── Why section ──────────────────────────────────── */
+  .why-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-top: 28px;
+  }
+
+  .why-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+
+  .why-card .icon {
+    font-size: 24px;
+    margin-bottom: 10px;
+  }
+
+  .why-card h3 {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: var(--gold);
+  }
+
+  .why-card p {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* ── Pipeline ─────────────────────────────────────── */
+  .pipeline {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    margin-top: 28px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .pipe-step {
+    flex: 1;
+    min-width: 140px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-right: none;
+    padding: 20px 16px;
+    position: relative;
+  }
+
+  .pipe-step:first-child { border-radius: 10px 0 0 10px; }
+
+  .pipe-step:last-child {
+    border-right: 1px solid var(--border);
+    border-radius: 0 10px 10px 0;
+  }
+
+  .pipe-step::after {
+    content: '→';
+    position: absolute;
+    right: -13px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--gold);
+    font-size: 18px;
+    z-index: 1;
+  }
+
+  .pipe-step:last-child::after { display: none; }
+
+  .pipe-num {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--gold);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    font-family: var(--mono);
+  }
+
+  .pipe-step h3 {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+
+  .pipe-step p {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  /* ── Notebooks ────────────────────────────────────── */
+  .notebook-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px;
+    margin-bottom: 20px;
+    transition: border-color 0.18s;
+  }
+
+  .notebook-card:hover { border-color: rgba(246,166,35,0.4); }
+
+  .notebook-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .notebook-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+
+  .notebook-icon.solo   { background: rgba(10,36,99,0.4);  border: 1px solid #0A2463; }
+  .notebook-icon.duo    { background: rgba(198,40,40,0.2);  border: 1px solid #C62828; }
+  .notebook-icon.trio   { background: rgba(21,101,192,0.2); border: 1px solid #1565C0; }
+
+  .notebook-meta { flex: 1; }
+
+  .notebook-meta h3 {
+    font-size: 17px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .notebook-meta .subtitle {
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .notebook-body p {
+    color: var(--muted);
+    font-size: 14px;
+    margin-bottom: 14px;
+  }
+
+  .tag-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .tag {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+
+  /* ── Feature engineering ─────────────────────────── */
+  .feat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 14px;
+    margin-top: 28px;
+  }
+
+  .feat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+  }
+
+  .feat-card h3 {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+
+  .feat-card p {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: 12px;
+    background: rgba(255,255,255,0.07);
+    padding: 1px 5px;
+    border-radius: 4px;
+    color: var(--gold);
+  }
+
+  /* ── Stack ────────────────────────────────────────── */
+  .stack-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 24px;
+  }
+
+  .stack-pill {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-family: var(--mono);
+  }
+
+  .stack-pill span {
+    color: var(--muted);
+    font-size: 11px;
+    display: block;
+    margin-top: 2px;
+  }
+
+  /* ── Footer ───────────────────────────────────────── */
+  footer {
+    text-align: center;
+    padding: 36px 24px;
+    color: var(--muted);
+    font-size: 13px;
+    border-top: 1px solid var(--border);
+  }
+
+  footer a { color: var(--gold); text-decoration: none; }
+
+  @media (max-width: 600px) {
+    .pipeline { flex-direction: column; }
+    .pipe-step { border-right: 1px solid var(--border); border-bottom: none; border-radius: 0; }
+    .pipe-step:first-child { border-radius: 10px 10px 0 0; }
+    .pipe-step:last-child { border-bottom: 1px solid var(--border); border-radius: 0 0 10px 10px; }
+    .pipe-step::after { content: '↓'; right: unset; left: 50%; bottom: -14px; top: unset; transform: translateX(-50%); }
+    .pipe-step:last-child::after { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Hero ────────────────────────────────────────────────── -->
+<div class="hero">
+  <div class="hero-tag">Football Analytics</div>
+  <h1>From <span>raw web data</span><br>to pitch visuals</h1>
+  <p>A Python pipeline that scrapes Opta event data, engineers football-specific metrics, and renders publication-quality pitch maps — no pre-packaged CSVs, no shortcuts.</p>
+  <div class="hero-links">
+    <a href="<a href="https://github.com/mizganst/football-analytics" class="btn btn-primary">View on GitHub</a>
+    <a href="#notebooks" class="btn btn-ghost">Explore Notebooks</a>
+  </div>
+</div>
+
+<!-- ── Why ─────────────────────────────────────────────────── -->
+<div class="container">
+  <section>
+    <h2>Why this exists</h2>
+    <p class="section-intro">Most football analytics tutorials hand you a tidy CSV and skip straight to the charts. That hides the real work — and the real understanding. These notebooks do the full journey.</p>
+
+    <div class="why-grid">
+      <div class="why-card">
+        <div class="icon">🕸️</div>
+        <h3>Real scraping</h3>
+        <p>WhoScored renders its data via JavaScript. Selenium handles the dynamic page; the raw Opta JSON is extracted from the page state.</p>
+      </div>
+      <div class="why-card">
+        <div class="icon">🔬</div>
+        <h3>Raw event parsing</h3>
+        <p>Every event carries type IDs, qualifier codes, and outcome flags. Decoding those — not using someone else's decoder — is where understanding comes from.</p>
+      </div>
+      <div class="why-card">
+        <div class="icon">⚙️</div>
+        <h3>Built-from-scratch metrics</h3>
+        <p>Carries are reconstructed from event sequences. xT is computed on a 16×12 grid. Nothing arrives pre-labelled.</p>
+      </div>
+      <div class="why-card">
+        <div class="icon">🎨</div>
+        <h3>Intentional visuals</h3>
+        <p>Every chart earns its place. The goal is something a football person can read without a data background — not just a proof of technical work.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Pipeline ────────────────────────────────────────────── -->
+  <section>
+    <h2>The pipeline</h2>
+    <p class="section-intro">Four stages, repeated for every notebook. Each stage produces something the next one depends on.</p>
+
+    <div class="pipeline">
+      <div class="pipe-step">
+        <div class="pipe-num">01</div>
+        <h3>Scrape</h3>
+        <p>Selenium renders each match page; raw JSON is pulled from the page state across a full season</p>
+      </div>
+      <div class="pipe-step">
+        <div class="pipe-num">02</div>
+        <h3>Parse</h3>
+        <p>Opta event type IDs, qualifier codes, and outcome flags are decoded into typed, filterable records</p>
+      </div>
+      <div class="pipe-step">
+        <div class="pipe-num">03</div>
+        <h3>Engineer</h3>
+        <p>Player-level metrics are derived — carries inferred, xT computed, chains traced, distances estimated</p>
+      </div>
+      <div class="pipe-step">
+        <div class="pipe-num">04</div>
+        <h3>Visualise</h3>
+        <p>mplsoccer + matplotlib render pitch maps with a consistent visual identity across all outputs</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Feature engineering ─────────────────────────────────── -->
+  <section>
+    <h2>Feature engineering</h2>
+    <p class="section-intro">The metrics you care about in football aren't served up ready-made. Here's what gets built.</p>
+
+    <div class="feat-grid">
+      <div class="feat-card">
+        <h3>Carry reconstruction</h3>
+        <p>Opta doesn't log ball carries as explicit events. They're inferred from consecutive possession events by the same player — checking time gap (&lt;12 s), spatial gap (2.5–35 units), and directionality. Carry speed is <code>distance ÷ dt</code>, mapped to a colour scale.</p>
+      </div>
+      <div class="feat-card">
+        <h3>Expected Threat (xT)</h3>
+        <p>Karun Singh's 16×12 pitch grid assigns each zone a probability of leading to a goal. For every successful pass or cross, <code>xT gained = xT(end_zone) − xT(start_zone)</code>. Zone totals accumulate across the season into a heatmap.</p>
+      </div>
+      <div class="feat-card">
+        <h3>Open-play filtering</h3>
+        <p>Set-piece actions (corners, free kicks, throw-ins, goal kicks) are stripped using Opta qualifier codes 5, 6, 107, and 124, so pass maps and chance-creation maps reflect genuine open-play patterns.</p>
+      </div>
+      <div class="feat-card">
+        <h3>Post-action chaining</h3>
+        <p>Checks whether a dribble or carry led to a shot within a fixed window — 3 team actions or 15 seconds — by walking forward through the sorted event stream. Flags the most dangerous sequences for the visual.</p>
+      </div>
+      <div class="feat-card">
+        <h3>Off-ball run detection</h3>
+        <p>Identifies receipt events in the final third where the gap since the player's last touch exceeds a threshold, suggesting a run into space rather than a stationary receipt.</p>
+      </div>
+      <div class="feat-card">
+        <h3>Pre-action movement distance</h3>
+        <p>For midfielders, estimates how far a player moved before receiving or before a defensive action — a proxy for off-ball engine work that doesn't show up in on-ball stats at all.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Notebooks ───────────────────────────────────────────── -->
+  <section id="notebooks">
+    <h2>Notebooks</h2>
+    <p class="section-intro">Three notebooks, each a step up in complexity — single player, two-player comparison, three-player comparison with a different position profile.</p>
+
+    <div class="notebook-card">
+      <div class="notebook-header">
+        <div class="notebook-icon solo">🎯</div>
+        <div class="notebook-meta">
+          <h3>Single Forward Analysis + Chance Creation</h3>
+          <div class="subtitle">One player · Full season · 11 visuals · Example: Yan Diomandé (RB Leipzig, 2025/26)</div>
+        </div>
+      </div>
+      <div class="notebook-body">
+        <p>A complete solo breakdown of an attacking player — how they receive the ball, where they drive with it, how they create chances, and what their passing does to the defensive shape. Every visual is independent and readable on its own; together they build a full picture.</p>
+        <p>Outputs cover: touch density, off-ball runs, chance creation (open play only), take-on success/failure, post-dribble actions coloured by xT gained, progressive carry speed, xT zone map, final-third passing connections, foot split, crosses into the box, and a summary radar with stat block.</p>
+      </div>
+      <div class="tag-row">
+        <span class="tag">touch_map</span>
+        <span class="tag">off_ball_runs</span>
+        <span class="tag">chance_creation</span>
+        <span class="tag">takeon_map</span>
+        <span class="tag">xT_zones</span>
+        <span class="tag">progressive_carries</span>
+        <span class="tag">summary_radar</span>
+      </div>
+    </div>
+
+    <div class="notebook-card">
+      <div class="notebook-header">
+        <div class="notebook-icon duo">⚖️</div>
+        <div class="notebook-meta">
+          <h3>Two Forward Comparison</h3>
+          <div class="subtitle">Two players · Side-by-side · 10 visuals · Example: Victor Muñoz vs Luis Díaz</div>
+        </div>
+      </div>
+      <div class="notebook-body">
+        <p>Takes the solo analysis and extends it to a direct comparison — both players rendered on mirrored pitches within each visual. The example is deliberately cross-league and cross-season (Osasuna 2025/26 vs Liverpool 2024/25) to show the pipeline handles different data prefixes cleanly and that the metrics are comparable even when the context differs.</p>
+      </div>
+      <div class="tag-row">
+        <span class="tag">side_by_side</span>
+        <span class="tag">cross_season</span>
+        <span class="tag">xT_comparison</span>
+        <span class="tag">carry_speed</span>
+        <span class="tag">foot_split</span>
+      </div>
+    </div>
+
+    <div class="notebook-card">
+      <div class="notebook-header">
+        <div class="notebook-icon trio">🧭</div>
+        <div class="notebook-meta">
+          <h3>Three-Way Midfielder Comparison — Ligue 1</h3>
+          <div class="subtitle">Bouaddi · Camaraet · Sangaré · 2025/26 · 10 visuals · 2-above-1 pitch layout</div>
+        </div>
+      </div>
+      <div class="notebook-body">
+        <p>A midfielder-specific comparison with a richer defensive and transition metric set. The three-player layout moves to a 2-above-1 format to keep each pitch readable at smaller sizes. The added metrics — fast pass maps, ball recovery maps, post-recovery distribution, and pre-action movement — capture what central midfielders do that doesn't show up in chance-creation numbers.</p>
+      </div>
+      <div class="tag-row">
+        <span class="tag">midfield</span>
+        <span class="tag">fast_passes</span>
+        <span class="tag">ball_recovery</span>
+        <span class="tag">post_recovery_pass</span>
+        <span class="tag">pre_action_distance</span>
+        <span class="tag">three_player_layout</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Stack ───────────────────────────────────────────────── -->
+  <section>
+    <h2>Tech stack</h2>
+    <p class="section-intro">Standard scientific Python with one sport-specific library on top.</p>
+
+    <div class="stack-row">
+      <div class="stack-pill">selenium<span>dynamic scraping</span></div>
+      <div class="stack-pill">webdriver-manager<span>browser automation</span></div>
+      <div class="stack-pill">numpy<span>array-level metrics</span></div>
+      <div class="stack-pill">scipy<span>KDE density</span></div>
+      <div class="stack-pill">matplotlib<span>figure construction</span></div>
+      <div class="stack-pill">mplsoccer<span>pitch drawing (Opta coords)</span></div>
+      <div class="stack-pill">json / pathlib<span>data I/O</span></div>
+    </div>
+  </section>
+</div>
+
+<footer>
+  <p>Data: Opta via WhoScored &nbsp;·&nbsp; Visualisations built with <a href="https://mplsoccer.readthedocs.io">mplsoccer</a> and matplotlib<br>
+  xT grid values: <a href="https://karun.in/blog/expected-threat.html">Karun Singh</a> &nbsp;·&nbsp; Personal research — not for commercial use</p>
+</footer>
+
+</body>
+</html>
