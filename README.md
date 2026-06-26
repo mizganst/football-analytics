@@ -77,7 +77,7 @@ Side-by-side comparison of two forwards, laid out on mirrored pitches for direct
 
 ---
 
-### `bouaddi_camara_sangare_ligue1_comp2.ipynb`
+### `Three-midfielder comparison.ipynb`
 A three-way comparison built around **central midfielders** rather than forwards, so the metric set shifts accordingly. Subject trio: **Ayyoub Bouaddi (Lille)**, **Lamine Camaraet (Monaco)**, and **Mamadou Sangaré (Lens)** — all 2025/26 Ligue 1. The layout moves to a 2-above-1 pitch format to accommodate three panels per visual cleanly. Additional metrics not in the forward notebooks:
 
 - Pass map with final-third / box-pass distinction (arrow thickness encodes destination zone)
